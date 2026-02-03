@@ -1,11 +1,31 @@
 import re
 from urllib.parse import urlparse
+from urllib.parse import urljoin
+from bs4 import BeautifulSoup
+from utils.response import Response
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
     return [link for link in links if is_valid(link)]
 
 def extract_next_links(url, resp):
+    hyperlinks = list()
+
+    if resp.status != 200:
+        print(f"Error: {resp.error}")
+        return
+
+    soup = BeautifulSoup(resp.raw_response.content, "html.parser")
+
+    #links = soup.findall()
+
+    for link in soup.find_all("a", href=True):
+        #absolute_link = urljoin(resp.url, tag["href"])
+        #print(absolute_link)
+
+        hyperlinks.append(link["href"])
+    for l in hyperlinks:
+        print(l)
     # Implementation required.
     # url: the URL that was used to get the page
     # resp.url: the actual url of the page
@@ -15,7 +35,7 @@ def extract_next_links(url, resp):
     #         resp.raw_response.url: the url, again
     #         resp.raw_response.content: the content of the page!
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
-    return list()
+    return hyperlinks
 
 def is_valid(url):
     # Decide whether to crawl this url or not. 
@@ -34,7 +54,14 @@ def is_valid(url):
             + r"|epub|dll|cnf|tgz|sha1"
             + r"|thmx|mso|arff|rtf|jar|csv"
             + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
-
     except TypeError:
         print ("TypeError for ", parsed)
         raise
+
+# resp_dict = {}
+# resp_dict["url"] = "https://ics.uci.edu/~thornton/ics33/Notes/"
+# resp_dict["status"] = 200
+# resp_dict["response"] = "hello"
+
+# resp = Response(resp_dict)
+#scraper("https://ics.uci.edu/~thornton/ics33/Notes/", resp)

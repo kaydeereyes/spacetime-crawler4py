@@ -1,6 +1,7 @@
 import re
 from urllib.parse import urlparse
 from urllib.parse import urljoin
+from urllib.parse import urldefrag
 from bs4 import BeautifulSoup
 from utils.response import Response
 
@@ -22,19 +23,23 @@ def extract_next_links(url, resp):
 
     if resp.status != 200:
         print(f"Error: {resp.error}")
-        return
-
+        return hyperlinks
+    if 600 <= resp.status <= 608:
+        print(f"Error: {resp.error}")
+        return hyperlinks
+    
     soup = BeautifulSoup(resp.raw_response.content, "html.parser")
+    links = soup.find_all("a", href=True)
 
-    #links = soup.findall()
+    for alink in links:
+        link = urljoin(resp.url, alink["href"])
+        clean_url, fragment = urldefrag(link)
+        hyperlinks.append(clean_url)
+        #print('this is a link', alink)
 
-    for link in soup.find_all("a", href=True):
-        absolute_link = urljoin(resp.url, tag["href"])
-        print(absolute_link)
+    # for i in range(5):
+    #     print(hyperlinks[i])
 
-        hyperlinks.append(link["href"])
-    for l in hyperlinks:
-        print(l)
     
     return hyperlinks
 

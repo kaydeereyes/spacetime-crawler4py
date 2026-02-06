@@ -21,10 +21,11 @@ def extract_next_links(url, resp):
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
     hyperlinks = list()
 
-    if resp.status != 200:
+    if 600 <= resp.status <= 608:
         print(f"Error: {resp.error}")
         return hyperlinks
-    if 600 <= resp.status <= 608:
+
+    if resp.status != 200:
         print(f"Error: {resp.error}")
         return hyperlinks
     
@@ -35,7 +36,8 @@ def extract_next_links(url, resp):
         link = urljoin(resp.url, alink["href"])
         clean_url, fragment = urldefrag(link)
         hyperlinks.append(clean_url)
-        #print('this is a link', alink)
+        if is_valid(clean_url):
+            print('this is a link', clean_url)
 
     # for i in range(5):
     #     print(hyperlinks[i])
@@ -51,6 +53,13 @@ def is_valid(url):
         parsed = urlparse(url)
         if parsed.scheme not in set(["http", "https"]):
             return False
+        
+        host = (parsed.hostname or "").lower()
+        allowed = [".ics.uci.edu", ".cs.uci.edu", ".informatics.uci.edu", ".stat.uci.edu"]
+
+        if not any(host == suf.lstrip(".") or host.endswith(suf) for suf in allowed):
+            return False
+
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"

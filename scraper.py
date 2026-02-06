@@ -32,13 +32,12 @@ def extract_next_links(url, resp):
     links = soup.find_all("a", href=True)
 
     for alink in links:
-        link = urljoin(resp.url, alink["href"])
+        href = alink.get("href")
+        if not href:
+            continue
+        link = urljoin(resp.url, href)
         clean_url, fragment = urldefrag(link)
         hyperlinks.append(clean_url)
-        #print('this is a link', alink)
-
-    # for i in range(5):
-    #     print(hyperlinks[i])
 
     
     return hyperlinks

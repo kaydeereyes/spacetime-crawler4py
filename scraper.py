@@ -93,12 +93,11 @@ def extract_next_links(url, resp):
 
     for alink in links:
         link = urljoin(resp.url, alink["href"])
-        clean_url, fragment = urldefrag(link)
+        clean_url, _ = urldefrag(link)
+        clean_url = clean_url.rstrip("/")
         hyperlinks.add(clean_url)
-        # if is_valid(clean_url):
-        #     print('this is a link', clean_url)
 
-    return list(hyperlinks)
+    return hyperlinks
 
 def is_valid(url):
     # Decide whether to crawl this url or not. 
@@ -113,6 +112,25 @@ def is_valid(url):
         allowed = [".ics.uci.edu", ".cs.uci.edu", ".informatics.uci.edu", ".stat.uci.edu"]
 
         if not any(host == suf.lstrip(".") or host.endswith(suf) for suf in allowed):
+            return False
+
+        #DETECT TRAPS
+        #calendars
+        if re.search(r"/(calendar|date|year|month|archive)/\d{4}", parsed.path.lower()):
+            return False
+
+        #infinite queries
+        if parsed.query:
+            params = parsed.query.split("&")
+            if len(params) > 5:
+                return False
+
+        #infinite directories
+        if parsed.path.count("/") > 10:
+            return False
+
+        #infinite param variants
+        if re.search(r"(utm_|session|ref|fbclid|gclid)", parsed.query.lower()):
             return False
 
         return not re.match(

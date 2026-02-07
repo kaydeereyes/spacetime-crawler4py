@@ -34,7 +34,8 @@ def extract_next_links(url, resp):
 
     for alink in links:
         link = urljoin(resp.url, alink["href"])
-        clean_url, fragment = urldefrag(link)
+        clean_url, _ = urldefrag(link)
+        clean_url = clean_url.rstrip("/")
         hyperlinks.add(clean_url)
 
     return hyperlinks
@@ -56,10 +57,21 @@ def is_valid(url):
 
         #DETECT TRAPS
         #calendars
-        if re.search(r"/(calendar|date|year|month)/\d{4}", parsed.path):
+        if re.search(r"/(calendar|date|year|month|archive)/\d{4}", parsed.path.lower()):
             return False
 
-        if parsed.query.count("&") > 5:
+        #infinite queries
+        if parsed.query:
+            params = parsed.query.split("&")
+            if len(params) > 5:
+                return False
+
+        #infinite directories
+        if parsed.path.count("/") > 10:
+            return False
+
+        #infinite param variants
+        if re.search(r"(utm_|session|ref|fbclid|gclid)", parsed.query.lower()):
             return False
 
         return not re.match(

@@ -19,7 +19,7 @@ def extract_next_links(url, resp):
     #         resp.raw_response.url: the url, again
     #         resp.raw_response.content: the content of the page!
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
-    hyperlinks = list()
+    hyperlinks = set()
 
     if 600 <= resp.status <= 608:
         print(f"Error: {resp.error}")
@@ -35,14 +35,8 @@ def extract_next_links(url, resp):
     for alink in links:
         link = urljoin(resp.url, alink["href"])
         clean_url, fragment = urldefrag(link)
-        hyperlinks.append(clean_url)
-        if is_valid(clean_url):
-            print('this is a link', clean_url)
+        hyperlinks.add(clean_url)
 
-    # for i in range(5):
-    #     print(hyperlinks[i])
-
-    
     return hyperlinks
 
 def is_valid(url):
@@ -58,6 +52,14 @@ def is_valid(url):
         allowed = [".ics.uci.edu", ".cs.uci.edu", ".informatics.uci.edu", ".stat.uci.edu"]
 
         if not any(host == suf.lstrip(".") or host.endswith(suf) for suf in allowed):
+            return False
+
+        #DETECT TRAPS
+        #calendars
+        if re.search(r"/(calendar|date|year|month)/\d{4}", parsed.path):
+            return False
+
+        if parsed.query.count("&") > 5:
             return False
 
         return not re.match(

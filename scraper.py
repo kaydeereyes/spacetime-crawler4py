@@ -1,7 +1,7 @@
 import re
 from urllib.parse import urlparse
 from urllib.parse import urljoin
-from urllib.parse import urldefrag
+from urllib.parse import urldefrag, parse_qsl, urlencode
 from bs4 import BeautifulSoup
 from utils.response import Response
 
@@ -34,8 +34,36 @@ def extract_next_links(url, resp):
 
     for alink in links:
         link = urljoin(resp.url, alink["href"])
+
+        #remove fragments
         clean_url, _ = urldefrag(link)
-        clean_url = clean_url.rstrip("/")
+        parsed = urlparse(link)
+
+        #scheme + host
+        scheme = parsed.scheme.lower()
+        host = (parsed.hostname or "").lower()
+
+        # remove default ports
+        port = parsed.port
+        if port in [80, 443, None]:
+            netloc = host
+        else:
+            netloc = f"{host}:{port}"
+
+        # normalize path
+        path = parsed.path.rstrip("/")
+        if path == "":
+            path = "/"
+        
+        #sort query parameters
+        query_params = parse_qsl(parsed.query, keep_blank_values=True)
+        query_params.sort()
+        query = urlencode(query_params)
+
+        clean_url = f"{scheme}://{netloc}{path}"
+        if query:
+            clean_url += f"?{query}"
+
         hyperlinks.add(clean_url)
 
     return hyperlinks
@@ -45,7 +73,11 @@ def is_valid(url):
     # If you decide to crawl it, return True; otherwise return False.
     # There are already some conditions that return False.
     try:
-        parsed = urlparse(url)
+        try:
+            parsed = urlparse(url)
+        except ValueError:
+            return False
+        
         if parsed.scheme not in set(["http", "https"]):
             return False
         
@@ -58,6 +90,12 @@ def is_valid(url):
         #DETECT TRAPS
         #calendars
         if re.search(r"/(calendar|date|year|month|archive)/\d{4}", parsed.path.lower()):
+            return False
+        if re.search(r"\d{4}-\d{2}-\d{2}", parsed.path):
+            return False
+        if re.search(r"\d{4}/\d{2}/\d{2}", parsed.path):
+            return False
+        if "tribe__" in parsed.query:
             return False
 
         #infinite queries
@@ -73,6 +111,15 @@ def is_valid(url):
         #infinite param variants
         if re.search(r"(utm_|session|ref|fbclid|gclid)", parsed.query.lower()):
             return False
+
+        #doku.php trap
+        if parsed.query and re.search(r"(do=|tab_|image=|ns=)", parsed.query.lower()):
+            return False
+
+        #block infinite page traps
+        if re.search(r"/page/\d+", parsed.path.lower()):
+            return False
+
 
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"

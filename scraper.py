@@ -24,7 +24,7 @@ STRIP_KEYS = {
     "body","enddt","fbclid","format","gclid","ical","jsessionid","location",
     "outlook-ical","phpsessid","ref","ref_src","rrv","sessionid", "sid","startdt",
     "subject","utm_source","utm_medium","utm_campaign","utm_term","utm_content","view", "utm_",
-    "session", "search", "keyword", "query"
+    "session", "search", "keyword", "query", "auth", "ticket", "sso", "token", "share"
 }
 
 unique_urls = set()
@@ -146,7 +146,7 @@ def is_valid(url):
         #calendars
         if re.search(r"/(calendar|date|year|month|archive)/\d{4}", parsed.path.lower()):
             return False
-        if re.search(r"(outlook|calendar|ical|gcal|event)", parsed.path.lower()):
+        if re.search(r"(outlook|calendar|ical|gcal|event|events)", parsed.path.lower()):
             return False
 
         #infinite queries

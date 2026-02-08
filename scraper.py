@@ -1,7 +1,7 @@
 import re
 from urllib.parse import urlparse
 from urllib.parse import urljoin
-from urllib.parse import urldefrag, parse_qsl, urlencode
+from urllib.parse import urldefrag
 from bs4 import BeautifulSoup
 from utils.response import Response
 
@@ -47,15 +47,6 @@ def scraper(url, resp):
     return [link for link in links if is_valid(link)]
 
 def extract_next_links(url, resp):
-    # Implementation required.
-    # url: the URL that was used to get the page
-    # resp.url: the actual url of the page
-    # resp.status: the status code returned by the server. 200 is OK, you got the page. Other numbers mean that there was some kind of problem.
-    # resp.error: when status is not 200, you can check the error here, if needed.
-    # resp.raw_response: this is where the page actually is. More specifically, the raw_response has two parts:
-    #         resp.raw_response.url: the url, again
-    #         resp.raw_response.content: the content of the page!
-    # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
     global longest_page
     hyperlinks = set()
 
@@ -69,60 +60,35 @@ def extract_next_links(url, resp):
     
     soup = BeautifulSoup(resp.raw_response.content, "html.parser")
     
+    # Remove script and style elements so only visible page text is processed
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
     
     links = soup.find_all("a", href=True)
 
-        
+    # Q1: add the defragmented url to the set of unique urls
     page_url, _ = urldefrag(resp.url)
     unique_urls.add(page_url)
 
+    # Extract text and tokenize for word count
     text = soup.get_text(separator=" ")
     tokens = tokenize_text(text)
     filtered = list()
 
+    # Filter out stopwords
     for word in tokens:
         if word not in STOPWORDS:
             filtered.append(word)
 
+    # Q2: update longest_page if the current page has more words
     word_count = len(filtered)
-
     if word_count > longest_page[1]:
         longest_page = (page_url, word_count)
 
     for alink in links:
         link = urljoin(resp.url, alink["href"])
-
-        #remove fragments
         clean_url, _ = urldefrag(link)
-        parsed = urlparse(link)
-
-        #scheme + host
-        scheme = parsed.scheme.lower()
-        host = (parsed.hostname or "").lower()
-
-        # remove default ports
-        port = parsed.port
-        if port in [80, 443, None]:
-            netloc = host
-        else:
-            netloc = f"{host}:{port}"
-
-        # normalize path
-        path = parsed.path.rstrip("/")
-        if path == "":
-            path = "/"
-        
-        #sort query parameters
-        query_params = parse_qsl(parsed.query, keep_blank_values=True)
-        query_params.sort()
-        query = urlencode(query_params)
-
-        clean_url = f"{scheme}://{netloc}{path}"
-        if query:
-            clean_url += f"?{query}"
-
+        clean_url = clean_url.rstrip("/")
         hyperlinks.add(clean_url)
 
     return hyperlinks
@@ -132,11 +98,7 @@ def is_valid(url):
     # If you decide to crawl it, return True; otherwise return False.
     # There are already some conditions that return False.
     try:
-        try:
-            parsed = urlparse(url)
-        except ValueError:
-            return False
-        
+        parsed = urlparse(url)
         if parsed.scheme not in set(["http", "https"]):
             return False
         
@@ -149,12 +111,6 @@ def is_valid(url):
         #DETECT TRAPS
         #calendars
         if re.search(r"/(calendar|date|year|month|archive)/\d{4}", parsed.path.lower()):
-            return False
-        if re.search(r"\d{4}-\d{2}-\d{2}", parsed.path):
-            return False
-        if re.search(r"\d{4}/\d{2}/\d{2}", parsed.path):
-            return False
-        if "tribe__" in parsed.query:
             return False
 
         #infinite queries
@@ -170,15 +126,6 @@ def is_valid(url):
         #infinite param variants
         if re.search(r"(utm_|session|ref|fbclid|gclid)", parsed.query.lower()):
             return False
-
-        #doku.php trap
-        if parsed.query and re.search(r"(do=|tab_|image=|ns=)", parsed.query.lower()):
-            return False
-
-        #block infinite page traps
-        if re.search(r"/page/\d+", parsed.path.lower()):
-            return False
-
 
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"

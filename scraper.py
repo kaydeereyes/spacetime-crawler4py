@@ -1,7 +1,5 @@
 import re
-from urllib.parse import urlparse
-from urllib.parse import urljoin
-from urllib.parse import urldefrag
+from urllib.parse import urlparse, urljoin, urldefrag, parse_qsl, urlencode, urlunparse
 from bs4 import BeautifulSoup
 from utils.response import Response
 
@@ -20,6 +18,12 @@ STOPWORDS = {
     "what","what's","when","when's","where","where's","which","while","who","who's","whom","why","why's",
     "with","won't","would","wouldn't","you","you'd","you'll","you're","you've","your","yours","yourself",
     "yourselves"
+}
+
+STRIP_KEYS = {
+    "body","enddt","fbclid","format","gclid","ical","jsessionid","location",
+    "outlook-ical","phpsessid","ref","ref_src","rrv","sessionid", "sid","startdt",
+    "subject","utm_source","utm_medium","utm_campaign","utm_term","utm_content","view"
 }
 
 unique_urls = set()
@@ -41,6 +45,27 @@ def tokenize_text(text: str):
         tokens.append(token)
 
     return tokens
+
+def normalize_url(url):
+    parsed = urlparse(url)
+
+    path = parsed.path.rstrip("/")
+
+    lower_path = path.lower()
+
+    if any(segment in lower_path for segment in ("/event", "/events", "/talks/day", "/calendar", "/ical")):
+        new_query = ""
+    else:
+        pairs = parse_qsl(parsed.query, True)
+        kept_urls = [(k, v) for (k, v) in pairs if k.lower() not in STRIP_KEYS]
+        
+        if kept_urls:
+            new_query = urlencode(sorted(kept_urls))
+        else:
+            new_query = ""
+
+    normalized = urlunparse((parsed.scheme, parsed.netloc, path, parsed.params, new_query, ""))
+    return normalized
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
@@ -88,8 +113,16 @@ def extract_next_links(url, resp):
     for alink in links:
         link = urljoin(resp.url, alink["href"])
         clean_url, _ = urldefrag(link)
-        clean_url = clean_url.rstrip("/")
-        hyperlinks.add(clean_url)
+        normalized_url = normalize_url(clean_url)
+
+        if not normalized_url: # skip
+            continue
+        if normalized_url == page_url:
+            continue
+        if not is_valid(normalized_url):
+            continue
+
+        hyperlinks.add(normalized_url)
 
     return hyperlinks
 

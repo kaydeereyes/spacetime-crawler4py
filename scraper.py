@@ -23,7 +23,8 @@ STOPWORDS = {
 STRIP_KEYS = {
     "body","enddt","fbclid","format","gclid","ical","jsessionid","location",
     "outlook-ical","phpsessid","ref","ref_src","rrv","sessionid", "sid","startdt",
-    "subject","utm_source","utm_medium","utm_campaign","utm_term","utm_content","view"
+    "subject","utm_source","utm_medium","utm_campaign","utm_term","utm_content","view", "utm_",
+    "session", "search", "keyword", "query", "auth", "ticket", "sso", "token", "share"
     ,"media","tok"
 }
 
@@ -148,6 +149,10 @@ def is_valid(url):
             return False
         if re.search(r"/events/.*/day/\d{4}-\d{2}-\d{2}/?$", parsed.path.lower()):
             return False
+        if re.search(r"(outlook|calendar|ical|gcal|event|events)", parsed.path.lower()):
+            return False
+        if re.search(r"(outlook|calendar|ical|gcal|event|events)", parsed.path.lower()):
+            return False
 
         #infinite queries
         if parsed.query:
@@ -159,14 +164,22 @@ def is_valid(url):
         if parsed.path.count("/") > 10:
             return False
 
-        #infinite param variants
-        if re.search(r"(utm_|session|ref|fbclid|gclid)", parsed.query.lower()):
+        #dokuwiki param infinite variants
+        if "doku.php" in parsed.path.lower():
+            return False
+        if re.search(r"(do=|rev=|diff|ns=|tab_)", parsed.query.lower()):
             return False
 
         #fetch/proxy/download traps
         path = parsed.path.lower()
         if "fetch.php" in path or "download" in path or "login.php" in path:
             return False
+
+        #fetch/proxy/download traps
+        path = parsed.path.lower()
+        if "fetch.php" in path or "download" in path or "login.php" in path:
+            return False
+
 
 
         return not re.match(
@@ -181,11 +194,3 @@ def is_valid(url):
     except TypeError:
         print ("TypeError for ", parsed)
         raise
-
-# resp_dict = {}
-# resp_dict["url"] = "https://ics.uci.edu/~thornton/ics33/Notes/"
-# resp_dict["status"] = 200
-# resp_dict["response"] = "hello"
-
-# resp = Response(resp_dict)
-#scraper("https://ics.uci.edu/~thornton/ics33/Notes/", resp)

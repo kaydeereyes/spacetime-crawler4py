@@ -99,9 +99,9 @@ def extract_next_links(url, resp):
     # Extract text and tokenize for word count
     text = soup.get_text(separator=" ")
     tokens = tokenize_text(text)
-    filtered = list()
 
     # Filter out stopwords
+    filtered = list()
     for word in tokens:
         if word not in STOPWORDS:
             filtered.append(word)

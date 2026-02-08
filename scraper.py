@@ -24,6 +24,7 @@ STRIP_KEYS = {
     "body","enddt","fbclid","format","gclid","ical","jsessionid","location",
     "outlook-ical","phpsessid","ref","ref_src","rrv","sessionid", "sid","startdt",
     "subject","utm_source","utm_medium","utm_campaign","utm_term","utm_content","view"
+    ,"media","tok"
 }
 
 unique_urls = set()
@@ -124,7 +125,7 @@ def extract_next_links(url, resp):
 
         hyperlinks.add(normalized_url)
 
-    return hyperlinks
+    return list(hyperlinks)
 
 def is_valid(url):
     # Decide whether to crawl this url or not. 
@@ -143,7 +144,9 @@ def is_valid(url):
 
         #DETECT TRAPS
         #calendars
-        if re.search(r"/(calendar|date|year|month|archive)/\d{4}", parsed.path.lower()):
+        if re.search(r"/(calendar|date|year|month|archive|day)/\d{4}", parsed.path.lower()):
+            return False
+        if re.search(r"/events/.*/day/\d{4}-\d{2}-\d{2}/?$", parsed.path.lower()):
             return False
 
         #infinite queries
@@ -159,6 +162,12 @@ def is_valid(url):
         #infinite param variants
         if re.search(r"(utm_|session|ref|fbclid|gclid)", parsed.query.lower()):
             return False
+
+        #fetch/proxy/download traps
+        path = parsed.path.lower()
+        if "fetch.php" in path or "download" in path or "login.php" in path:
+            return False
+
 
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"

@@ -2,6 +2,7 @@ import re
 from urllib.parse import urlparse, urljoin, urldefrag, parse_qsl, urlencode, urlunparse
 from bs4 import BeautifulSoup
 from utils.response import Response
+from collections import Counter, defaultdict
 
 STOPWORDS = {
     "a","about","above","after","again","against","all","am","an","and","any","are","aren't","as","at",
@@ -30,8 +31,15 @@ STRIP_KEYS = {
 
 unique_urls = set()
 longest_page = ("", 0) # (url, word_count)
+word_frequencies = Counter()
+subdomains = defaultdict(set)
 
 def save_report():
+    """
+    Saves report
+    Runtime: O(n) for each word in word_frequencies and amount of domains.
+    """
+
     with open("report.txt", "w") as f:
         f.write(f'Unique pages: {len(unique_urls)}\n')
         f.write(f'Longest page: {longest_page[0]} ({longest_page[1]} words)\n\n')
@@ -43,6 +51,10 @@ def save_report():
             f.write(f"  {sub}, {len(subdomains[sub])}\n")
 
 def tokenize_text(text: str):
+    """
+    Tokenizes file into a list of Tokens.
+    Runtime = O(m), where m is the number of tokens generated.
+    """
     tokens = []
     token = ""
 
@@ -60,6 +72,11 @@ def tokenize_text(text: str):
     return tokens
 
 def normalize_url(url):
+    """
+    Cleans/Normalizes URL to remove trailing slashes, stripping tracking parameter,
+    keeping calendar-related query params for event pages, 
+    sorting remaining params for consistency
+    """
     parsed = urlparse(url)
 
     path = parsed.path.rstrip("/")
@@ -81,10 +98,18 @@ def normalize_url(url):
     return normalized
 
 def scraper(url, resp):
+    """
+    Initiates Scraper, returning a list of valid hyperlinks.
+    """
     links = extract_next_links(url, resp)
     return [link for link in links if is_valid(link)]
 
 def extract_next_links(url, resp):
+    """
+    Iniates the crawling. Parses HTML with Beautiful Soup, removing scripts and 
+    leaving human-readable text. Tokenizes and filters stopwords and tracks the page
+    with the most stopwords. Finds all links and normalizes them.
+    """
     global longest_page
     hyperlinks = set()
 
@@ -95,6 +120,7 @@ def extract_next_links(url, resp):
     if resp.status != 200:
         print(f"Error: {resp.error}")
         return hyperlinks
+    
     
     soup = BeautifulSoup(resp.raw_response.content, "html.parser")
     
@@ -118,6 +144,7 @@ def extract_next_links(url, resp):
         if word not in STOPWORDS:
             filtered.append(word)
 
+    
     # Q2: update longest_page if the current page has more words
     word_count = len(filtered)
     if word_count > longest_page[1]:

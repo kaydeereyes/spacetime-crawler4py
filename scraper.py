@@ -34,21 +34,27 @@ longest_page = ("", 0) # (url, word_count)
 word_frequencies = Counter()
 subdomains = defaultdict(set)
 
-def save_report():
+def save_report(filename = "report.txt"):
     """
     Saves report
     Runtime: O(n) for each word in word_frequencies and amount of domains.
     """
-
     with open("report.txt", "w") as f:
+        #Q1
         f.write(f'Unique pages: {len(unique_urls)}\n')
+        #Q2
         f.write(f'Longest page: {longest_page[0]} ({longest_page[1]} words)\n\n')
+        #Q3
         f.write("Top 50 words:\n")
-        for word, count in word_frequencies.most_common(50):
-            f.write(f"  {word}: {count}\n")
-        f.write("\nSubdomains:\n")
+        for rank, (word, count) in word_frequencies.most_common(50):
+            f.write(f"  {rank}. {word}: {count}\n")
+        f.write("\n")
+        #Q4
+        f.write(f"\nSubdomains found: {len(subdomains)}\n")
         for sub in sorted(subdomains):
             f.write(f"  {sub}, {len(subdomains[sub])}\n")
+
+    print(f"Report saved to {filename}")
 
 def tokenize_text(text: str):
     """

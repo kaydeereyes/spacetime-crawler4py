@@ -1,7 +1,9 @@
 import re
+import hashlib
 from urllib.parse import urlparse, urljoin, urldefrag, parse_qsl, urlencode, urlunparse
 from bs4 import BeautifulSoup
 from utils.response import Response
+from collections import Counter, defaultdict
 
 STOPWORDS = {
     "a","about","above","after","again","against","all","am","an","and","any","are","aren't","as","at",
@@ -30,6 +32,12 @@ STRIP_KEYS = {
 
 unique_urls = set()
 longest_page = ("", 0) # (url, word_count)
+word_frequencies = Counter()
+seen_hashes = set()
+subdomains = defaultdict(set)
+
+LARGE_FILE_SIZE = 10_000_000
+MIN_WORD_COUNT = 50
 
 def tokenize_text(text: str):
     tokens = []
@@ -79,38 +87,64 @@ def extract_next_links(url, resp):
 
     if 600 <= resp.status <= 608:
         print(f"Error: {resp.error}")
-        return hyperlinks
+        return list(hyperlinks)
 
     if resp.status != 200:
         print(f"Error: {resp.error}")
-        return hyperlinks
+        return list(hyperlinks)
+    
+    if not resp.raw_response or not resp.raw_response.content: # dead URLs
+        return list(hyperlinks)
+    
+    if len(resp.raw_response.content) == 0: # no content
+        return list(hyperlinks)
+    
+    if len(resp.raw_response.content) > LARGE_FILE_SIZE:
+        return list(hyperlinks)
+    
+    if "text/html" not in resp.raw_response.headers.get("Content-Type", ""):
+        return list(hyperlinks)
     
     soup = BeautifulSoup(resp.raw_response.content, "html.parser")
     
     # Remove script and style elements so only visible page text is processed
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
+
+    # Extract text and tokenize for word count
+    text = soup.get_text(separator=" ")
+    tokens = tokenize_text(text)
+    filtered = [t for t in tokens if t not in STOPWORDS]
+
+    if len(tokens) < MIN_WORD_COUNT:
+        return list(hyperlinks)
     
-    links = soup.find_all("a", href=True)
+    # Hash urls, duplicate content check
+    content_hash = hashlib.md5(" ".join(filtered).encode()).hexdigest()
+
+    if content_hash in seen_hashes:
+        return list(hyperlinks)
+    
+    seen_hashes.add(content_hash)
 
     # Q1: add the defragmented url to the set of unique urls
     page_url, _ = urldefrag(resp.url)
     unique_urls.add(page_url)
 
-    # Extract text and tokenize for word count
-    text = soup.get_text(separator=" ")
-    tokens = tokenize_text(text)
-
-    # Filter out stopwords
-    filtered = list()
-    for word in tokens:
-        if word not in STOPWORDS:
-            filtered.append(word)
-
-    # Q2: update longest_page if the current page has more words
+     # Q2: update longest_page if the current page has more words
     word_count = len(filtered)
     if word_count > longest_page[1]:
         longest_page = (page_url, word_count)
+
+    # Q3: track word frequencies
+    word_frequencies.update(filtered)
+
+    # Q4: subdomains
+    host = urlparse(page_url).hostname.lower()
+    if host.endswith(".uci.edu"):
+        subdomains[host].add(page_url)
+
+    links = soup.find_all("a", href=True)
 
     for alink in links:
         link = urljoin(resp.url, alink["href"])
@@ -142,45 +176,51 @@ def is_valid(url):
 
         if not any(host == suf.lstrip(".") or host.endswith(suf) for suf in allowed):
             return False
+        
+        path = parsed.path.lower()
 
         #DETECT TRAPS
         #calendars
-        if re.search(r"/(calendar|date|year|month|archive|day)/\d{4}", parsed.path.lower()):
+        if re.search(r"/(calendar|date|year|month|archive|day)/\d{4}", path):
             return False
-        if re.search(r"/events/.*/day/\d{4}-\d{2}-\d{2}/?$", parsed.path.lower()):
+        if re.search(r"/events/.*/day/\d{4}-\d{2}-\d{2}/?$", path):
             return False
-        if re.search(r"(outlook|calendar|ical|gcal|event|events)", parsed.path.lower()):
-            return False
-        if re.search(r"(outlook|calendar|ical|gcal|event|events)", parsed.path.lower()):
+        if re.search(r"(outlook|calendar|ical|gcal|event|events)", path):
             return False
 
-        #infinite queries
+        # infinite queries
         if parsed.query:
             params = parsed.query.split("&")
             if len(params) > 5:
                 return False
 
-        #infinite directories
+        # infinite directories
         if parsed.path.count("/") > 10:
             return False
+        
+        # repeated path segments
+        segments = [s for s in parsed.path.split("/") if s]
+        if len(segments) > 4 and len(segments) != len(set(segments)):
+            return False
 
-        #dokuwiki param infinite variants
-        if "doku.php" in parsed.path.lower():
+        # dokuwiki param infinite variants
+        if "doku.php" in path:
             return False
         if re.search(r"(do=|rev=|diff|ns=|tab_)", parsed.query.lower()):
             return False
-
-        #fetch/proxy/download traps
-        path = parsed.path.lower()
-        if "fetch.php" in path or "download" in path or "login.php" in path:
+        
+        # sort/filter/action parameter traps
+        if re.search(r"(sort|order|filter|action)=", parsed.query.lower()):
+            return False
+        
+        # pagination traps
+        if re.search(r"(page|p)=\d{3,}", parsed.query.lower()):
             return False
 
         #fetch/proxy/download traps
         path = parsed.path.lower()
         if "fetch.php" in path or "download" in path or "login.php" in path:
             return False
-
-
 
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
@@ -191,6 +231,7 @@ def is_valid(url):
             + r"|epub|dll|cnf|tgz|sha1"
             + r"|thmx|mso|arff|rtf|jar|csv"
             + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
+    
     except TypeError:
         print ("TypeError for ", parsed)
         raise

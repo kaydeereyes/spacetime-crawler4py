@@ -39,7 +39,33 @@ subdomains = defaultdict(set)
 LARGE_FILE_SIZE = 10_000_000
 MIN_WORD_COUNT = 50
 
+def save_report(filename = "report.txt"):
+    """
+    Saves report
+    Runtime: O(n) for each word in word_frequencies and amount of domains.
+    """
+    with open("report.txt", "w") as f:
+        #Q1
+        f.write(f'Unique pages: {len(unique_urls)}\n')
+        #Q2
+        f.write(f'Longest page: {longest_page[0]} ({longest_page[1]} words)\n\n')
+        #Q3
+        f.write("Top 50 words:\n")
+        for rank, (word, count) in word_frequencies.most_common(50):
+            f.write(f"  {rank}. {word}: {count}\n")
+        f.write("\n")
+        #Q4
+        f.write(f"\nSubdomains found: {len(subdomains)}\n")
+        for sub in sorted(subdomains):
+            f.write(f"  {sub}, {len(subdomains[sub])}\n")
+
+    print(f"Report saved to {filename}")
+
 def tokenize_text(text: str):
+    """
+    Tokenizes file into a list of Tokens.
+    Runtime = O(m), where m is the number of tokens generated.
+    """
     tokens = []
     token = ""
 
@@ -57,6 +83,11 @@ def tokenize_text(text: str):
     return tokens
 
 def normalize_url(url):
+    """
+    Cleans/Normalizes URL to remove trailing slashes, stripping tracking parameter,
+    keeping calendar-related query params for event pages, 
+    sorting remaining params for consistency
+    """
     parsed = urlparse(url)
 
     path = parsed.path.rstrip("/")
@@ -78,10 +109,19 @@ def normalize_url(url):
     return normalized
 
 def scraper(url, resp):
+    """
+    Initiates Scraper, returning a list of valid hyperlinks.
+    """
     links = extract_next_links(url, resp)
+    save_report()
     return [link for link in links if is_valid(link)]
 
 def extract_next_links(url, resp):
+    """
+    Iniates the crawling. Parses HTML with Beautiful Soup, removing scripts and 
+    leaving human-readable text. Tokenizes and filters stopwords and tracks the page
+    with the most stopwords. Finds all links and normalizes them.
+    """
     global longest_page
     hyperlinks = set()
 
@@ -104,6 +144,7 @@ def extract_next_links(url, resp):
     
     if "text/html" not in resp.raw_response.headers.get("Content-Type", ""):
         return list(hyperlinks)
+    
     
     soup = BeautifulSoup(resp.raw_response.content, "html.parser")
     

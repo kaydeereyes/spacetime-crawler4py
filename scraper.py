@@ -108,6 +108,7 @@ def scraper(url, resp):
     Initiates Scraper, returning a list of valid hyperlinks.
     """
     links = extract_next_links(url, resp)
+    save_report()
     return [link for link in links if is_valid(link)]
 
 def extract_next_links(url, resp):

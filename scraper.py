@@ -51,9 +51,8 @@ def save_report(filename = "report.txt"):
         f.write(f'Longest page: {longest_page[0]} ({longest_page[1]} words)\n\n')
         #Q3
         f.write("Top 50 words:\n")
-        for rank, (word, count) in word_frequencies.most_common(50):
+        for rank, (word, count) in enumerate(word_frequencies.most_common(50), start=1):
             f.write(f"  {rank}. {word}: {count}\n")
-        f.write("\n")
         #Q4
         f.write(f"\nSubdomains found: {len(subdomains)}\n")
         for sub in sorted(subdomains):
@@ -113,7 +112,7 @@ def scraper(url, resp):
     Initiates Scraper, returning a list of valid hyperlinks.
     """
     links = extract_next_links(url, resp)
-    save_report()
+    # save_report()
     return [link for link in links if is_valid(link)]
 
 def extract_next_links(url, resp):
@@ -157,7 +156,7 @@ def extract_next_links(url, resp):
     tokens = tokenize_text(text)
     filtered = [t for t in tokens if t not in STOPWORDS]
 
-    if len(tokens) < MIN_WORD_COUNT:
+    if len(filtered) < MIN_WORD_COUNT:
         return list(hyperlinks)
     
     # Hash urls, duplicate content check
@@ -170,7 +169,13 @@ def extract_next_links(url, resp):
 
     # Q1: add the defragmented url to the set of unique urls
     page_url, _ = urldefrag(resp.url)
-    unique_urls.add(page_url)
+
+    if page_url not in unique_urls:
+        unique_urls.add(page_url)
+
+        # periodic report save every 200 unique pages
+        if len(unique_urls) % 200 == 0:
+            save_report()
 
      # Q2: update longest_page if the current page has more words
     word_count = len(filtered)

@@ -4,6 +4,8 @@ from urllib.parse import urlparse, urljoin, urldefrag, parse_qsl, urlencode, url
 from bs4 import BeautifulSoup
 from utils.response import Response
 from collections import Counter, defaultdict
+import atexit
+
 
 STOPWORDS = {
     "a","about","above","after","again","against","all","am","an","and","any","are","aren't","as","at",
@@ -59,6 +61,8 @@ def save_report(filename = "report.txt"):
             f.write(f"  {sub}, {len(subdomains[sub])}\n")
 
     print(f"Report saved to {filename}")
+
+atexit.register(save_report)
 
 def tokenize_text(text: str):
     """
@@ -193,7 +197,10 @@ def extract_next_links(url, resp):
     links = soup.find_all("a", href=True)
 
     for alink in links:
-        link = urljoin(resp.url, alink["href"])
+        try:
+            link = urljoin(resp.url, alink["href"])
+        except (TypeError, ValueError, KeyError):
+            continue
         clean_url, _ = urldefrag(link)
         normalized_url = normalize_url(clean_url)
 
